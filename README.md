@@ -1,4 +1,5 @@
 # Jimeng MCP 服务器
+[![smithery badge](https://smithery.ai/badge/@c-rick/jimeng-mcp)](https://smithery.ai/server/@c-rick/jimeng-mcp)
 
 使用TypeScript实现的Model Context Protocol (MCP) 服务器项目，集成了火山引擎的即梦AI图像生成服务。
 
@@ -13,6 +14,17 @@
 
 ## 安装
 
+### 安装到Claude 
+
+在Claude Desktop配置的MCP服务器中安装本项目
+
+```bash
+# 使用命令行安装
+claude install --url https://smithery.ai/jimeng-mcp
+
+```
+
+### 手动安装
 ```bash
 # 使用yarn安装依赖
 yarn install
