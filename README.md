@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/c-rick-jimeng-mcp-badge.png)](https://mseep.ai/app/c-rick-jimeng-mcp)
+
 # Jimeng MCP 服务器
 
 
