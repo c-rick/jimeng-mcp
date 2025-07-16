@@ -6,7 +6,7 @@ dist/
 lib/
 
 # 环境变量
-.env
+#.env
 .env.local
 .env.*.local
 
