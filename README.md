@@ -93,6 +93,16 @@ yarn start
 yarn test
 ```
 
+## HTTP 服务请求示例
+在 .env 文件中填入对应的JIMENG_API_TOKEN
+```bash
+# 启动服务器
+yarn start:api
+
+# 使用 curl 进行调用
+curl -X POST "http://localhost:3000/generateImage" -H "Content-Type: application/json" -d "{\"prompt\":\"一只可爱的猫咪在草地上\",\"model\":\"jimeng-3.0\",\"width\":1024,\"height\":1024}"
+```
+
 ## Claude Desktop 配置示例
 
 以下是在Claude Desktop中配置此MCP服务器的完整示例:
@@ -258,4 +268,4 @@ API将返回生成的图像URL数组，可以直接在各类客户端中显示�
 
 ## 许可证
 
-MIT 
+MIT
