@@ -10,24 +10,36 @@ import { generateMsToken, toUrlParams, generateUuid, jsonEncode, urlEncode, unix
 
 // 模型映射
 const MODEL_MAP: Record<string, string> = {
+  // image - new models (Seedream)
+  'jimeng-5.0': 'high_aes_general_v50',
+  'jimeng-4.6': 'high_aes_general_v42',
+  'jimeng-4.5': 'high_aes_general_v40l',
+  'jimeng-4.1': 'high_aes_general_v41',
+  'jimeng-4.0': 'high_aes_general_v40',
   'jimeng-3.1': 'high_aes_general_v30l_art_fangzhou:general_v3.0_18b',
   'jimeng-3.0': 'high_aes_general_v30l:general_v3.0_18b',
+  // image - legacy models
   'jimeng-2.1': 'high_aes_general_v21_L:general_v2.1_L',
   'jimeng-2.0-pro': 'high_aes_general_v20_L:general_v2.0_L',
   'jimeng-2.0': 'high_aes_general_v20:general_v2.0',
   'jimeng-1.4': 'high_aes_general_v14:general_v1.4',
   'jimeng-xl-pro': 'text2img_xl_sft',
-  // video
+  // video - new models (Seedance)
+  'jimeng-video-seedance-2.0': 'dreamina_seedance_40_pro',
+  'jimeng-video-seedance-2.0-fast': 'dreamina_seedance_40',
+  'jimeng-video-3.5-pro': 'dreamina_ic_generate_video_model_vgfm_3.5_pro',
   'jimeng-video-3.0-pro': 'dreamina_ic_generate_video_model_vgfm_3.0_pro',
+  'jimeng-video-3.0-fast': 'dreamina_ic_generate_video_model_vgfm_3.0_fast',
   'jimeng-video-3.0': 'dreamina_ic_generate_video_model_vgfm_3.0',
-  'jimeng-video-2.0': 'dreamina_ic_generate_video_model_vgfm_lite',
-  'jimeng-video-2.0-pro': 'dreamina_ic_generate_video_model_vgfm1.0'
+  // video - legacy aliases
+  'jimeng-video-2.0': 'dreamina_seedance_40',
+  'jimeng-video-2.0-pro': 'dreamina_seedance_40_pro'
 };
 
 
 // 常量定义
-const DEFAULT_MODEL = 'jimeng-3.1';
-const DEFAULT_VIDEO_MODEL = 'jimeng-video-3.0';
+const DEFAULT_MODEL = 'jimeng-5.0';
+const DEFAULT_VIDEO_MODEL = 'jimeng-video-3.0-fast';
 const DEFAULT_BLEND_MODEL = 'jimeng-3.0';
 const DRAFT_VERSION = '3.0.2';
 const DEFAULT_ASSISTANT_ID = '513695'; // 从原始仓库中提取
@@ -85,13 +97,29 @@ export function generateCookie(refreshToken: string) {
 
 // 即梦API客户端类
 class JimengApiClient {
-  private refreshToken: string;
+  private tokens: string[];
+  private tokenIndex: number = 0;
   private getUploadImageProofUrl = 'https://imagex.bytedanceapi.com/'
 
   constructor() {
-    this.refreshToken = process.env.JIMENG_API_TOKEN || '';
-    if (!this.refreshToken) {
+    const raw = process.env.JIMENG_API_TOKEN || '';
+    if (!raw) {
       throw new Error('JIMENG_API_TOKEN 环境变量未设置');
+    }
+    this.tokens = raw.split(',').map(t => t.trim()).filter(Boolean);
+    if (this.tokens.length === 0) {
+      throw new Error('JIMENG_API_TOKEN 未配置有效的 token');
+    }
+  }
+
+  private get refreshToken(): string {
+    return this.tokens[this.tokenIndex];
+  }
+
+  private nextToken(): void {
+    this.tokens.splice(this.tokenIndex, 1);
+    if (this.tokens.length > 0) {
+      this.tokenIndex = this.tokenIndex % this.tokens.length;
     }
   }
 
@@ -101,7 +129,7 @@ class JimengApiClient {
    * @returns 映射后的模型名称
    */
   private getModel(model: string): string {
-    return MODEL_MAP[model] || MODEL_MAP[DEFAULT_MODEL];
+    return MODEL_MAP[model] || model || MODEL_MAP[DEFAULT_MODEL];
   }
 
   /**
@@ -228,12 +256,6 @@ class JimengApiClient {
     // 获取实际模型
     const modelName = hasFilePath ? DEFAULT_BLEND_MODEL : params.model || DEFAULT_MODEL;
     const actualModel = this.getModel(modelName);
-    // 检查积分
-    const creditInfo = await this.getCredit();
-    if (creditInfo.totalCredit <= 0) {
-      await this.receiveCredit();
-    }
-
     // 生成组件ID
     const componentId = generateUuid();
     const rqParams = {
@@ -343,12 +365,13 @@ class JimengApiClient {
         }
       }
     }
+    let submitId = generateUuid()
     const rqData = {
       "extend": {
         "root_model": actualModel,
         "template_id": "",
       },
-      "submit_id": generateUuid(),
+      "submit_id": submitId,
       "metrics_extra": hasFilePath ? undefined : jsonEncode({
         "templateId": "",
         "generateCount": 1,
@@ -356,6 +379,8 @@ class JimengApiClient {
         "templateSource": "",
         "lastRequestId": "",
         "originRequestId": "",
+        "enterFrom": "click",
+        "position": "page_bottom_box"
       }),
       "draft_content": jsonEncode({
         "type": "draft",
@@ -387,15 +412,34 @@ class JimengApiClient {
       }),
     }
 
-    // 发送生成请求
-    const result = await this.request(
-      'POST',
-      '/mweb/v1/aigc_draft/generate',
-      rqData,
-      rqParams
-    );
-
-    const itemList = await this.pollResultWithHistory(result);
+    // 发送生成请求（积分不足时自动切换Token重试）
+    let generateResult: any;
+    while (this.tokens.length > 0) {
+      const creditInfo = await this.getCredit();
+      if (creditInfo.totalCredit <= 0) {
+        await this.receiveCredit();
+      }
+      generateResult = await this.request(
+        'POST',
+        '/mweb/v1/aigc_draft/generate',
+        rqData,
+        rqParams
+      );
+      // console.log('生成请求结果:', generateResult);
+      if (generateResult?.ret === '1006') {
+        console.log(`Token [${this.tokenIndex + 1}/${this.tokens.length}] 积分不足，移除并切换下一个Token重试`);
+        this.nextToken();
+        if (this.tokens.length === 0) break;
+        submitId = generateUuid();
+        rqData.submit_id = submitId;
+        continue;
+      }
+      break;
+    }
+    if (!generateResult || generateResult?.ret === '1006') {
+      throw new Error('所有Token积分不足或没有相关权益');
+    }
+    const itemList = await this.pollResultWithHistory(generateResult, submitId);
 
     // 提取图片URL
     const resultList = (itemList || []).map(item => {
@@ -407,10 +451,9 @@ class JimengApiClient {
   }
 
 
-  async pollResultWithHistory(result: any): Promise<any[]> {
+  async pollResultWithHistory(result: any, submitId: string): Promise<any[]> {
     // 获取历史记录ID
-    const historyId = result?.data?.aigc_data?.history_record_id;
-    if (!historyId) {
+    if (!submitId) {
       if (result?.errmsg) {
         throw new Error(result.errmsg);
       } else {
@@ -430,33 +473,11 @@ class JimengApiClient {
         'POST',
         '/mweb/v1/get_history_by_ids',
         {
-          "history_ids": [historyId],
-          "image_info": {
-            "width": 2048,
-            "height": 2048,
-            "format": "webp",
-            "image_scene_list": [
-              { "scene": "smart_crop", "width": 360, "height": 360, "uniq_key": "smart_crop-w:360-h:360", "format": "webp" },
-              { "scene": "smart_crop", "width": 480, "height": 480, "uniq_key": "smart_crop-w:480-h:480", "format": "webp" },
-              { "scene": "smart_crop", "width": 720, "height": 720, "uniq_key": "smart_crop-w:720-h:720", "format": "webp" },
-              { "scene": "smart_crop", "width": 720, "height": 480, "uniq_key": "smart_crop-w:720-h:480", "format": "webp" },
-              { "scene": "smart_crop", "width": 360, "height": 240, "uniq_key": "smart_crop-w:360-h:240", "format": "webp" },
-              { "scene": "smart_crop", "width": 240, "height": 320, "uniq_key": "smart_crop-w:240-h:320", "format": "webp" },
-              { "scene": "smart_crop", "width": 480, "height": 640, "uniq_key": "smart_crop-w:480-h:640", "format": "webp" },
-              { "scene": "normal", "width": 2400, "height": 2400, "uniq_key": "2400", "format": "webp" },
-              { "scene": "normal", "width": 1080, "height": 1080, "uniq_key": "1080", "format": "webp" },
-              { "scene": "normal", "width": 720, "height": 720, "uniq_key": "720", "format": "webp" },
-              { "scene": "normal", "width": 480, "height": 480, "uniq_key": "480", "format": "webp" },
-              { "scene": "normal", "width": 360, "height": 360, "uniq_key": "360", "format": "webp" }
-            ]
-          },
-          "http_common_info": {
-            "aid": parseInt(DEFAULT_ASSISTANT_ID)
-          }
+          "submit_ids": [submitId],
         }
       );
 
-      const record = result?.data?.[historyId];
+      const record = result?.data?.[submitId];
       if (!record) {
         throw new Error('记录不存在');
       }
@@ -895,11 +916,6 @@ class JimengApiClient {
       throw new Error('prompt必须是非空字符串');
     }
     const actualModel = this.getModel(params.model || DEFAULT_VIDEO_MODEL);
-    // 检查积分
-    const creditInfo = await this.getCredit();
-    if (creditInfo.totalCredit <= 0) {
-      await this.receiveCredit();
-    }
     let first_frame_image = undefined
     let end_frame_image = undefined
     if (params?.filePath) {
@@ -941,12 +957,14 @@ class JimengApiClient {
       }
     }
     const componentId = generateUuid();
+    let submitId = generateUuid()
     const metricsExtra = jsonEncode({
       "enterFrom": "click",
       "isDefaultSeed": 1,
       "promptSource": "custom",
       "isRegenerate": false,
-      "originSubmitId": generateUuid(),
+      "originSubmitId": submitId,
+      "position": "page_bottom_box",
     })
     const rqParams: {
       [key: string]: string | number
@@ -963,7 +981,7 @@ class JimengApiClient {
     rqParams['a_bogus'] = generate_a_bogus(toUrlParams(rqParams), UA)
     const rqData = {
       "extend": {
-        "root_model": end_frame_image ? MODEL_MAP['jimeng-video-3.0'] : actualModel,
+        "root_model": actualModel,
         "m_video_commerce_info": {
           benefit_type: "basic_video_operation_vgfm_v_three",
           resource_id: "generate_video",
@@ -977,14 +995,14 @@ class JimengApiClient {
           resource_sub_type: "aigc"
         }]
       },
-      "submit_id": generateUuid(),
+      "submit_id": submitId,
       "metrics_extra": metricsExtra,
       "draft_content": jsonEncode({
         "type": "draft",
         "id": generateUuid(),
         "min_version": "3.0.5",
         "is_from_tsn": true,
-        "version": "3.2.8",
+        "version": "3.3.11",
         "main_component_id": componentId,
         "component_list": [{
           "type": "video_base_component",
@@ -1032,15 +1050,34 @@ class JimengApiClient {
         }],
       }),
     }
-    // 发送生成请求
-    const result = await this.request(
-      'POST',
-      '/mweb/v1/aigc_draft/generate',
-      rqData,
-      rqParams
-    );
-
-    const itemList = await this.pollResultWithHistory(result);
+    // 发送生成请求（积分不足时自动切换Token重试）
+    let generateResult: any;
+    while (this.tokens.length > 0) {
+      const creditInfo = await this.getCredit();
+      if (creditInfo.totalCredit <= 0) {
+        await this.receiveCredit();
+      }
+      generateResult = await this.request(
+        'POST',
+        '/mweb/v1/aigc_draft/generate',
+        rqData,
+        rqParams
+      );
+      if (generateResult?.ret === '1006') {
+        console.log(`Token [${this.tokenIndex + 1}/${this.tokens.length}] 积分不足，移除并切换下一个Token重试`);
+        this.nextToken();
+        if (this.tokens.length === 0) break;
+        submitId = generateUuid();
+        rqData.submit_id = submitId;
+        continue;
+      }
+      break;
+    }
+    if (!generateResult || generateResult?.ret === '1006') {
+      throw new Error('所有Token积分不足或没有相关权益');
+    }
+    console.log('生成请求结果:', generateResult);
+    const itemList = await this.pollResultWithHistory(generateResult, submitId);
     const videoUrl = itemList?.[0]?.video?.transcoded_video?.origin?.video_url
     console.log('生成视频结果:', videoUrl);
 

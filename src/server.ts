@@ -31,7 +31,7 @@ export const createServer = (): McpServer => {
     {
       filePath: z.string().optional().describe("本地图片路径或图片URL（可选，若填写则为图片混合/参考图生成功能）"),
       prompt: z.string().describe("生成图像的文本描述"),
-      model: z.string().optional().describe("模型名称，可选值: jimeng-3.0, jimeng-2.1, jimeng-2.0-pro, jimeng-2.0, jimeng-1.4, jimeng-xl-pro"),
+      model: z.string().optional().describe("模型名称，可选值: jimeng-5.0, jimeng-4.6, jimeng-4.5, jimeng-4.1, jimeng-4.0, jimeng-3.1, jimeng-3.0（旧版: jimeng-2.1, jimeng-2.0-pro, jimeng-2.0, jimeng-1.4, jimeng-xl-pro）"),
       width: z.number().optional().default(1024).describe("图像宽度，默认值：1024"),
       height: z.number().optional().default(1024).describe("图像高度，默认值：1024"),
       sample_strength: z.number().optional().default(0.5).describe("精细度，默认值：0.5，范围0-1"),
@@ -96,7 +96,7 @@ export const createServer = (): McpServer => {
     {
       filePath: z.array(z.string()).optional().describe("首帧和尾帧图片路径，支持数组，最多2个元素，分别为首帧和尾帧"),
       resolution: z.string().optional().describe("分辨率，可选720p或1080p，默认720p"),
-      model: z.string().optional().describe("模型名称，默认jimeng-video-3.0"),
+      model: z.string().optional().describe("模型名称，可选值: jimeng-video-seedance-2.0, jimeng-video-seedance-2.0-fast, jimeng-video-3.5-pro, jimeng-video-3.0-pro, jimeng-video-3.0-fast, jimeng-video-3.0，默认jimeng-video-3.0-fast"),
       prompt: z.string().describe("生成视频的文本描述"),
       width: z.number().optional().default(1024).describe("视频宽度，默认1024"),
       height: z.number().optional().default(1024).describe("视频高度，默认1024"),
@@ -181,7 +181,7 @@ export const createServer = (): McpServer => {
           参数说明:
           - filePath: 本地图片路径或图片URL（可选，若填写则为图片混合/参考图生成功能）
           - prompt: 生成图像的文本描述（必填）
-          - model: 模型名称，可选值: jimeng-3.0, jimeng-2.1, jimeng-2.0-pro, jimeng-2.0, jimeng-1.4, jimeng-xl-pro（可选）
+          - model: 模型名称，可选值: jimeng-5.0, jimeng-4.6, jimeng-4.5, jimeng-4.1, jimeng-4.0, jimeng-3.1, jimeng-3.0（可选）
           - width: 图像宽度，默认值：1024（可选）
           - height: 图像高度，默认值：1024（可选）
           - sample_strength: 精细度，默认值：0.5，范围0-1（可选）
@@ -191,7 +191,7 @@ export const createServer = (): McpServer => {
           generateImage({
             "filePath": "./test.png",
             "prompt": "一只可爱的猫咪",
-            "model": "jimeng-2.1",
+            "model": "jimeng-5.0",
             "width": 1024,
             "height": 1024,
             "sample_strength": 0.7,
@@ -220,7 +220,7 @@ export const createServer = (): McpServer => {
           参数说明:
           - filePath: 首帧和尾帧图片路径，支持数组，最多2个元素，分别为首帧和尾帧（可选）
           - prompt: 生成视频的文本描述（必填）
-          - model: 模型名称，默认jimeng-video-3.0（可选）
+          - model: 模型名称，可选值: jimeng-video-seedance-2.0, jimeng-video-seedance-2.0-fast, jimeng-video-3.5-pro, jimeng-video-3.0-pro, jimeng-video-3.0-fast, jimeng-video-3.0，默认jimeng-video-3.0-fast（可选）
           - resolution: 分辨率，可选720p或1080p，默认720p（可选）
           - width: 视频宽度，默认1024（可选）
           - height: 视频高度，默认1024（可选）
@@ -231,7 +231,7 @@ export const createServer = (): McpServer => {
           generateVideo({
             "filePath": ["./first.png", "./last.png"],
             "prompt": "一只小狗在草地上奔跑，阳光明媚，高清",
-            "model": "jimeng-video-3.0",
+            "model": "jimeng-video-3.0-fast",
             "resolution": "720p",
             "width": 1024,
             "height": 1024
