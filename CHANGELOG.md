@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.10.0](https://github.com/c-rick/jimeng-mcp/compare/v1.9.0...v1.10.0) (2026-03-17)
+
+
+### Features
+
+* **models:** update to Seedream/Seedance model series, add multi-token fallback and custom model support ([9892ec9](https://github.com/c-rick/jimeng-mcp/commit/9892ec95efca6f92fa42e65e3e108a53f2d1870c))
+
 ## [1.9.0](https://github.com/c-rick/jimeng-mcp/compare/v1.8.0...v1.9.0) (2025-07-16)
 
 
